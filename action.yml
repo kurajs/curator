@@ -45,6 +45,14 @@ inputs:
     description: "Token used to push the branch and open the PR."
     required: false
     default: ${{ github.token }}
+  committer-name:
+    description: "Git author/committer name for the docs commit. For a real commit avatar, use a GitHub identity — e.g. a GitHub App bot 'mori[bot]' or a machine user."
+    required: false
+    default: "Mori"
+  committer-email:
+    description: "Git author/committer email. GitHub shows an avatar only if this matches a GitHub account — e.g. a GitHub App bot '<bot-user-id>+mori[bot]@users.noreply.github.com'. The default mori@kura.build has no account, so it renders the generic placeholder."
+    required: false
+    default: "mori@kura.build"
 
 outputs:
   pr-url:
@@ -81,3 +89,5 @@ runs:
         CURATOR_DOCS_REPO: ${{ inputs.docs-repo }}
         CURATOR_DOCS_REF: ${{ inputs.docs-ref }}
         CURATOR_GITHUB_TOKEN: ${{ inputs.github-token }}
+        CURATOR_COMMITTER_NAME: ${{ inputs.committer-name }}
+        CURATOR_COMMITTER_EMAIL: ${{ inputs.committer-email }}

@@ -151,6 +151,41 @@ update — nothing else is touched. Pages with no `sources` are never auto-edite
 | `docs-repo` | — | Cross-repo mode: `owner/name` of a separate docs repo. Empty = same-repo. |
 | `docs-ref` | `main` | Base branch in the docs repo to open the PR against (cross-repo). |
 | `github-token` | `GITHUB_TOKEN` | Token used to push/open the PR. For cross-repo, a PAT/App token with write to `docs-repo`. |
+| `committer-name` | `Mori` | Git author/committer name for the docs commit. |
+| `committer-email` | `mori@kura.build` | Git author/committer email. See *Commit identity & avatar*. |
+
+## Commit identity & avatar
+
+By default Mori commits as `Mori <mori@kura.build>`. GitHub renders a commit avatar by matching the
+**email** to a GitHub account's verified email — `mori@kura.build` belongs to no account, so it shows
+the generic placeholder and the name isn't a link. To get a real, branded avatar you need a backing
+GitHub identity. Two options:
+
+- **GitHub App (recommended)** — create an App named *Mori*, upload its avatar, and commit as its bot.
+  Mint a token in the workflow and pass the bot identity:
+
+  ```yaml
+  - uses: actions/create-github-app-token@v2
+    id: app
+    with:
+      app-id: ${{ vars.MORI_APP_ID }}
+      private-key: ${{ secrets.MORI_APP_PRIVATE_KEY }}
+  - id: bot
+    run: echo "uid=$(gh api /users/${{ steps.app.outputs.app-slug }}'[bot]' --jq .id)" >> "$GITHUB_OUTPUT"
+    env: { GH_TOKEN: ${{ steps.app.outputs.token }} }
+  - uses: kurajs/curator@v1
+    with:
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github-token: ${{ steps.app.outputs.token }}
+      committer-name: ${{ steps.app.outputs.app-slug }}[bot]
+      committer-email: ${{ steps.bot.outputs.uid }}+${{ steps.app.outputs.app-slug }}[bot]@users.noreply.github.com
+  ```
+
+  Commits then show the App's avatar, a `bot` badge, and a Verified mark. (The same App can also be the
+  cross-repo `github-token`.)
+
+- **Machine user** — create a GitHub user, set its avatar, and pass its email as `committer-email`
+  with that user's PAT as `github-token`.
 
 ## Swappable engine (no lock-in)
 
