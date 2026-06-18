@@ -25,8 +25,12 @@ inputs:
     description: "For backend=cli: the external agent CLI command (e.g. 'codex exec')."
     required: false
     default: ""
+  mode:
+    description: "How to deliver the docs update: 'new-pr' (default — a standalone, docs-only PR; works with forks and post-merge push triggers) or 'same-pr' (commit onto the triggering PR's branch; same-repo PRs only, falls back to new-pr on forks)."
+    required: false
+    default: "new-pr"
   base:
-    description: "Base ref to diff against. Defaults to the PR base / 'main'."
+    description: "Base branch the docs PR targets / diffs against. Defaults to the PR base / 'main'."
     required: false
     default: ""
   docs-repo:
@@ -70,6 +74,7 @@ runs:
         CURATOR_ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
         CURATOR_DOCS_DIR: ${{ inputs.docs-dir }}
         CURATOR_BACKEND: ${{ inputs.backend }}
+        CURATOR_MODE: ${{ inputs.mode }}
         CURATOR_MODEL: ${{ inputs.model }}
         CURATOR_AGENT_CMD: ${{ inputs.agent-cmd }}
         CURATOR_BASE: ${{ inputs.base }}

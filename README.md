@@ -11,52 +11,90 @@ outside your docs.
 > answers your site's visitors) is a separate product. Both ground on the same read-only knowledge
 > surface; only Curator can propose edits, and only via a reviewed PR.
 
-## Two ways to run it
+## How it's delivered: `new-pr` vs `same-pr`
 
-| | Docs location | Auth | When |
+Mori writes AI-drafted prose, which always wants human review. Two delivery modes:
+
+| `mode` | What happens | Trigger it on | Best for |
 | --- | --- | --- | --- |
-| **Same-repo** | beside the code (incl. a monorepo subdir) | built-in `GITHUB_TOKEN`, zero setup | most projects |
-| **Cross-repo** | a separate docs repo | a token with write access to the docs repo | docs site is its own repo |
+| **`new-pr`** (default) | a standalone, **docs-only** PR | **`push` to your default branch** (post-merge) | the robust default — works with fork contributors, docs reflect *merged* code, the docs PR gets its own review/checks |
+| **`same-pr`** | commits onto the **triggering PR's** branch | **`pull_request`** | same-repo / monorepo / trusted, when you want code + docs to review and merge atomically |
 
-### Same-repo (recommended)
+Why `new-pr` is the default: on a `pull_request`, GitHub gives the workflow a **read-only**
+`GITHUB_TOKEN` for fork PRs, so `same-pr` *can't push back* to an external contributor's branch (it
+auto-falls back to `new-pr`). Triggering `new-pr` on **push (post-merge)** sidesteps this entirely —
+the merge already happened in your repo, so the token can write — and the docs then track code that
+actually landed. (Mori never uses `pull_request_target`; that would run with a write token against
+untrusted PR content.)
 
-Docs and code live in one repo. Add `.github/workflows/curator.yml`:
+> Note: a docs change Mori commits with the default `GITHUB_TOKEN` does **not** re-trigger other
+> workflows (GitHub's loop guard). If you need the docs PR to run your CI checks, pass a PAT or
+> GitHub App token as `github-token`.
+
+### Recommended: post-merge → docs-only PR (`new-pr`)
 
 ```yaml
 name: curator
 on:
-  pull_request:
+  push:
+    branches: [main]
+    paths: ["src/**", "packages/**"]   # only when tracked code lands
+  workflow_dispatch:
 permissions:
-  contents: write          # commit the docs update onto the PR branch
-  pull-requests: write     # (only needed for the push/manual standalone-PR path)
+  contents: write
+  pull-requests: write
 jobs:
   curate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.head_ref }}   # check out the PR branch (not the detached merge ref)
-          fetch-depth: 0                # full history, to diff against the base
+          fetch-depth: 0               # full history, to diff the pushed range
       - uses: kurajs/curator@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          docs-dir: content/docs        # e.g. apps/site/content/docs in a monorepo
+          docs-dir: content/docs       # e.g. apps/site/content/docs in a monorepo
 ```
 
-On a `pull_request`, Curator commits the docs update **onto the same PR branch** — the triggering
-PR gains the docs change, no second PR. (Run it on `push`/`workflow_dispatch` instead and it opens a
-standalone docs PR off the base.)
-
-### Cross-repo
-
-Code is in one repo, the docs site is in another. The Action runs in the **code** repo, clones the
-**docs** repo, edits there, and opens a PR **in the docs repo**. Set `docs-repo` and give a token
-that can write to it (the default `GITHUB_TOKEN` cannot reach another repo — see *Cross-repo auth*).
+### Alternative: ride the PR (`same-pr`, same-repo only)
 
 ```yaml
 name: curator
 on:
   pull_request:
+    paths: ["src/**", "packages/**"]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}  # the PR branch, so Mori can push onto it
+          fetch-depth: 0
+      - uses: kurajs/curator@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          docs-dir: content/docs
+          mode: same-pr
+```
+
+### Cross-repo
+
+Code is in one repo, the docs site is in another. The Action runs in the **code** repo, clones the
+**docs** repo, edits there, and opens a (docs-only) PR **in the docs repo**. Set `docs-repo` and give
+a token that can write to it (the default `GITHUB_TOKEN` cannot reach another repo — see *Cross-repo
+auth*). Best triggered on **push** to your default branch.
+
+```yaml
+name: curator
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "packages/**"]
+  workflow_dispatch:
 jobs:
   curate:
     runs-on: ubuntu-latest
@@ -105,6 +143,7 @@ update — nothing else is touched. Pages with no `sources` are never auto-edite
 | --- | --- | --- |
 | `anthropic-api-key` | — | Key for the default `claude-agent-sdk` backend (use a secret). |
 | `docs-dir` | `content/docs` | Where the Markdown docs live. |
+| `mode` | `new-pr` | `new-pr` (standalone docs-only PR) or `same-pr` (commit onto the triggering PR; same-repo only). |
 | `backend` | `claude-agent-sdk` | `claude-agent-sdk` or `cli`. |
 | `model` | — | Model id for the Claude backend. |
 | `agent-cmd` | — | For `backend: cli` — the external agent CLI (e.g. `codex exec`). |
