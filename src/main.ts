@@ -88,10 +88,17 @@ async function run() {
   // 1. changed files in this PR/push (vs base), in the CODE repo
   const changed = changedFiles(base);
 
+  // Commit message: custom subject (or the default), plus a trailer that defaults to "via @kurabuild"
+  // (set commit-trailer to "" to drop it). The subject doubles as the PR title.
+  const commit = {
+    subject: inp("COMMIT_MESSAGE", "commit-message") || `docs: sync with ${changed[0] ?? "code"}`,
+    trailer: inp("COMMIT_TRAILER", "commit-trailer"),
+  };
+
   if (docsRepo) {
-    return await crossRepo({ cwd, docsDir, docsRepo, docsRef, changed, backendName, resolveOpts, token, committer });
+    return await crossRepo({ cwd, docsDir, docsRepo, docsRef, changed, backendName, resolveOpts, token, committer, commit });
   }
-  return await sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolveOpts, token, committer });
+  return await sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolveOpts, token, committer, commit });
 }
 
 interface Ctx {
@@ -102,6 +109,7 @@ interface Ctx {
   resolveOpts: ResolveOpts;
   token: string;
   committer: { name: string; email: string };
+  commit: { subject: string; trailer: string };
 }
 
 // `git -c user.name=… -c user.email=…` flags for the commit author/committer. GitHub renders an
@@ -110,10 +118,14 @@ interface Ctx {
 // generic placeholder. Defaults keep the "Mori" name; set committer-* to a real identity for an avatar.
 const gitId = (c: { name: string; email: string }) => ["-c", `user.name=${c.name}`, "-c", `user.email=${c.email}`];
 
+// `commit -m <subject> [-m <trailer>]` — git joins the two -m values with a blank line, so the trailer
+// (e.g. "via @kurabuild") becomes the commit body. Trailer empty → subject only.
+const commitArgs = (c: { subject: string; trailer: string }) => ["commit", "-m", c.subject, ...(c.trailer ? ["-m", c.trailer] : [])];
+
 // SAME-REPO: docs live beside the code in this checkout.
 //   mode=new-pr (default) → open a standalone, docs-only PR off `base`.
 //   mode=same-pr          → commit onto the triggering PR's branch (only valid for a non-fork PR).
-async function sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolveOpts, token, committer }: Ctx & { base: string; mode: string }) {
+async function sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolveOpts, token, committer, commit }: Ctx & { base: string; mode: string }) {
   const candidates = candidatesFor(join(cwd, docsDir), changed);
   core.info(`changed ${changed.length} file(s) → ${candidates.length} candidate doc(s): ${candidates.join(", ") || "(none)"}`);
   if (!candidates.length) {
@@ -134,7 +146,7 @@ async function sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolv
     return;
   }
   sh("git", ["add", docsDir]);
-  sh("git", [...gitId(committer), "commit", "-m", `docs: sync with ${changed[0]}`]);
+  sh("git", [...gitId(committer), ...commitArgs(commit)]);
   const docsCommit = sh("git", ["rev-parse", "HEAD"]);
 
   // same-pr: ride the triggering PR by pushing the docs commit onto its head branch. Only works for a
@@ -163,7 +175,7 @@ async function sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolv
   sh("git", ["push", "origin", branch]);
   const url = sh(
     "gh",
-    ["pr", "create", "--title", `docs: sync with ${changed[0]}`, "--body", prBody(changed, candidates, docsDir, summary), "--head", branch, "--base", base],
+    ["pr", "create", "--title", commit.subject, "--body", prBody(changed, candidates, docsDir, summary), "--head", branch, "--base", base],
     cwd,
     { ...process.env, GH_TOKEN: token },
   );
@@ -181,7 +193,7 @@ function tryRef(ref: string): string | undefined {
 }
 
 // CROSS-REPO: docs live in a separate repo — clone it, edit there, open a PR over there.
-async function crossRepo({ cwd, docsDir, docsRepo, docsRef, changed, backendName, resolveOpts, token, committer }: Ctx & { docsRepo: string; docsRef: string }) {
+async function crossRepo({ cwd, docsDir, docsRepo, docsRef, changed, backendName, resolveOpts, token, committer, commit }: Ctx & { docsRepo: string; docsRef: string }) {
   if (!token) throw new Error("cross-repo mode needs a `github-token` with write access to the docs repo (a PAT or GitHub App token); the default GITHUB_TOKEN cannot reach another repo.");
   const checkout = join(cwd, ".curator-docs");
   const cloneUrl = `https://x-access-token:${token}@github.com/${docsRepo}.git`;
@@ -212,12 +224,12 @@ async function crossRepo({ cwd, docsDir, docsRepo, docsRef, changed, backendName
   const branch = `curator/sync-${runSuffix()}`;
   sh("git", ["checkout", "-b", branch], checkout);
   sh("git", ["add", docsDir], checkout);
-  sh("git", [...gitId(committer), "commit", "-m", `docs: sync with ${changed[0]}`], checkout);
+  sh("git", [...gitId(committer), ...commitArgs(commit)], checkout);
   sh("git", ["push", "origin", branch], checkout);
   const from = process.env.GITHUB_REPOSITORY ? ` from \`${process.env.GITHUB_REPOSITORY}\`` : "";
   const url = sh(
     "gh",
-    ["pr", "create", "--repo", docsRepo, "--title", `docs: sync with ${changed[0]}`, "--body", prBody(changed, candidates, docsDir, summary, from), "--head", branch, "--base", docsRef],
+    ["pr", "create", "--repo", docsRepo, "--title", commit.subject, "--body", prBody(changed, candidates, docsDir, summary, from), "--head", branch, "--base", docsRef],
     checkout,
     { ...process.env, GH_TOKEN: token },
   );

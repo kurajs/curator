@@ -45,6 +45,14 @@ inputs:
     description: "Token used to push the branch and open the PR."
     required: false
     default: ${{ github.token }}
+  commit-message:
+    description: "Commit subject (also used as the PR title). Default: 'docs: sync with <first changed file>'."
+    required: false
+    default: ""
+  commit-trailer:
+    description: "Appended to the commit as a body line. Default 'via @kurabuild'; set to an empty string to omit it."
+    required: false
+    default: "via @kurabuild"
   committer-name:
     description: "Git author/committer name for the docs commit. For a real commit avatar, use a GitHub identity — e.g. a GitHub App bot 'mori[bot]' or a machine user."
     required: false
@@ -89,5 +97,7 @@ runs:
         CURATOR_DOCS_REPO: ${{ inputs.docs-repo }}
         CURATOR_DOCS_REF: ${{ inputs.docs-ref }}
         CURATOR_GITHUB_TOKEN: ${{ inputs.github-token }}
+        CURATOR_COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        CURATOR_COMMIT_TRAILER: ${{ inputs.commit-trailer }}
         CURATOR_COMMITTER_NAME: ${{ inputs.committer-name }}
         CURATOR_COMMITTER_EMAIL: ${{ inputs.committer-email }}

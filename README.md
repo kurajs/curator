@@ -11,7 +11,40 @@ outside your docs.
 > answers your site's visitors) is a separate product. Both ground on the same read-only knowledge
 > surface; only Curator can propose edits, and only via a reviewed PR.
 
-## How it's delivered: `new-pr` vs `same-pr`
+## Quickstart (2 steps)
+
+1. Add `ANTHROPIC_API_KEY` as a repository secret.
+2. Add `.github/workflows/curator.yml`:
+
+```yaml
+name: curator
+on:
+  push:
+    branches: [main]
+    paths: ["src/**"]      # the code your docs track
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: kurajs/curator@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          docs-dir: content/docs
+```
+
+That's it — the built-in `GITHUB_TOKEN` is enough. When code lands, Mori opens a docs-only PR updating
+the pages whose [`sources:`](#the-sources-convention) match. Everything below is **optional**:
+[ride the PR instead](#alternative-ride-the-pr-same-pr-same-repo-only), [docs in a separate
+repo](#cross-repo), [a branded commit avatar](#commit-identity--avatar), or [a different agent
+engine](#swappable-engine-no-lock-in).
+
+## Delivery modes: `new-pr` vs `same-pr`
 
 Mori writes AI-drafted prose, which always wants human review. Two delivery modes:
 
@@ -31,30 +64,7 @@ untrusted PR content.)
 > workflows (GitHub's loop guard). If you need the docs PR to run your CI checks, pass a PAT or
 > GitHub App token as `github-token`.
 
-### Recommended: post-merge → docs-only PR (`new-pr`)
-
-```yaml
-name: curator
-on:
-  push:
-    branches: [main]
-    paths: ["src/**", "packages/**"]   # only when tracked code lands
-  workflow_dispatch:
-permissions:
-  contents: write
-  pull-requests: write
-jobs:
-  curate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0               # full history, to diff the pushed range
-      - uses: kurajs/curator@v1
-        with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          docs-dir: content/docs       # e.g. apps/site/content/docs in a monorepo
-```
+The default `new-pr` + post-merge trigger is the [Quickstart](#quickstart-2-steps) above.
 
 ### Alternative: ride the PR (`same-pr`, same-repo only)
 
@@ -144,6 +154,8 @@ update — nothing else is touched. Pages with no `sources` are never auto-edite
 | `anthropic-api-key` | — | Key for the default `claude-agent-sdk` backend (use a secret). |
 | `docs-dir` | `content/docs` | Where the Markdown docs live. |
 | `mode` | `new-pr` | `new-pr` (standalone docs-only PR) or `same-pr` (commit onto the triggering PR; same-repo only). |
+| `commit-message` | `docs: sync with <file>` | Commit subject; also the PR title. |
+| `commit-trailer` | `via @kurabuild` | Body line appended to the commit. Set to `""` to omit. |
 | `backend` | `claude-agent-sdk` | `claude-agent-sdk` or `cli`. |
 | `model` | — | Model id for the Claude backend. |
 | `agent-cmd` | — | For `backend: cli` — the external agent CLI (e.g. `codex exec`). |
