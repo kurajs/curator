@@ -14,20 +14,24 @@ import { resolveBackend, type ResolveOpts } from "./backends/index.js";
 const sh = (cmd: string, args: string[], cwd = process.cwd(), env?: NodeJS.ProcessEnv) =>
   execFileSync(cmd, args, { cwd, encoding: "utf8", env: env ?? process.env }).trim();
 
+// Inputs arrive as CURATOR_* env vars set by the composite action.yml (clean names — no hyphens, so
+// no INPUT_DOCS-DIR-style quirks). Falls back to @actions/core for any non-composite invocation.
+const inp = (key: string, action: string) => ((process.env[`CURATOR_${key}`] ?? "").trim() || core.getInput(action));
+
 // A unique-enough branch suffix without Math.random/Date import churn — the run id is stable per job.
 const runSuffix = () => (process.env.GITHUB_RUN_ID || String(Date.now())).slice(-8);
 
 async function run() {
   const cwd = process.cwd(); // the CODE repo checkout
-  const docsDir = core.getInput("docs-dir") || "content/docs";
-  const base = core.getInput("base") || process.env.GITHUB_BASE_REF || "main";
-  const backendName = core.getInput("backend") || "claude-agent-sdk";
-  const apiKey = core.getInput("anthropic-api-key");
-  const token = core.getInput("github-token") || process.env.GITHUB_TOKEN || "";
-  const docsRepo = core.getInput("docs-repo").trim(); // "owner/name" → cross-repo; empty → same-repo
-  const docsRef = core.getInput("docs-ref").trim() || "main";
+  const docsDir = inp("DOCS_DIR", "docs-dir") || "content/docs";
+  const base = inp("BASE", "base") || process.env.GITHUB_BASE_REF || "main";
+  const backendName = inp("BACKEND", "backend") || "claude-agent-sdk";
+  const apiKey = inp("ANTHROPIC_API_KEY", "anthropic-api-key");
+  const token = inp("GITHUB_TOKEN", "github-token") || process.env.GITHUB_TOKEN || "";
+  const docsRepo = inp("DOCS_REPO", "docs-repo"); // "owner/name" → cross-repo; empty → same-repo
+  const docsRef = inp("DOCS_REF", "docs-ref") || "main";
   if (apiKey) process.env.ANTHROPIC_API_KEY = apiKey;
-  const resolveOpts: ResolveOpts = { model: core.getInput("model"), agentCmd: core.getInput("agent-cmd") };
+  const resolveOpts: ResolveOpts = { model: inp("MODEL", "model"), agentCmd: inp("AGENT_CMD", "agent-cmd") };
 
   // 1. changed files in this PR/push (vs base), in the CODE repo
   let changed: string[] = [];

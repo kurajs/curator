@@ -45,7 +45,34 @@ inputs:
 outputs:
   pr-url:
     description: "URL of the opened docs PR, if any."
+    value: ${{ steps.run.outputs.pr-url }}
 
+# Composite (not a bundled node action): the Claude Agent SDK spawns a per-platform native CLI that
+# lives in optional packages (@anthropic-ai/claude-agent-sdk-<platform>). Installing on the runner
+# itself pulls the correct binary; a pre-bundled dist can't carry it. Deps install from the action's
+# own lockfile, then we run the compiled script against the consumer's checkout.
 runs:
-  using: "node24"
-  main: "dist/index.js"
+  using: composite
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: "24"
+    - name: Install Curator
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --omit=dev
+    - name: Run Curator
+      id: run
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/dist/main.js"
+      env:
+        CURATOR_ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        CURATOR_DOCS_DIR: ${{ inputs.docs-dir }}
+        CURATOR_BACKEND: ${{ inputs.backend }}
+        CURATOR_MODEL: ${{ inputs.model }}
+        CURATOR_AGENT_CMD: ${{ inputs.agent-cmd }}
+        CURATOR_BASE: ${{ inputs.base }}
+        CURATOR_DOCS_REPO: ${{ inputs.docs-repo }}
+        CURATOR_DOCS_REF: ${{ inputs.docs-ref }}
+        CURATOR_GITHUB_TOKEN: ${{ inputs.github-token }}

@@ -7,16 +7,15 @@
   "author": "Lawrence Lin",
   "type": "module",
   "scripts": {
-    "build": "ncc build src/main.ts -o dist --source-map --minify",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",
-    "@anthropic-ai/claude-agent-sdk": "latest",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.181",
     "@kurajs/docs": "^0.0.5"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.3",
     "typescript": "^5.7.0"
   }
 }

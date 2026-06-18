@@ -127,8 +127,28 @@ aider). The sources-matching and PR steps never depend on the engine.
 
 ## Build / release
 
-`npm install && npm run build` bundles `src/main.ts` → `dist/index.js` (committed for releases, since
-GitHub runs `dist/index.js`). Tag `vX.Y.Z` + move the `v1` tag to release.
+This is a **composite action**: the Claude Agent SDK spawns a per-platform native CLI shipped in
+optional packages (`@anthropic-ai/claude-agent-sdk-<platform>`), so the action installs its deps on
+the runner itself (`npm ci`) rather than shipping a pre-bundled binary that can't carry every
+platform. `npm install && npm run build` compiles `src/` → `dist/` with `tsc` (committed for
+releases). Tag `vX.Y.Z` + move the `v1` tag to release.
+
+### Testing locally
+
+Logic (sources matching, the PR flow) runs on any OS — point `dist/main.js` at a throwaway git repo
+with `CURATOR_*` env set. But platform/packaging issues (like the native CLI binary) only surface on
+**linux-x64**, the runner's platform — a run on macOS pulls the darwin binary and looks fine. To
+reproduce the runner, run the action's steps in a Linux container:
+
+```bash
+docker run --rm -v "$PWD":/src:ro -v /path/to/sandbox:/repo \
+  -e CURATOR_DOCS_DIR=content/docs -e CURATOR_ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  node:24 bash -c 'mkdir /action && cp /src/package*.json /action/ && cp -r /src/dist /action/dist \
+    && cd /action && npm ci --omit=dev && git config --global --add safe.directory /repo \
+    && cd /repo && node /action/dist/main.js'
+```
+
+Or use [`act`](https://github.com/nektos/act) to run the workflow YAML end-to-end in Docker.
 
 ## License
 
