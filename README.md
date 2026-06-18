@@ -155,7 +155,7 @@ update — nothing else is touched. Pages with no `sources` are never auto-edite
 | `docs-dir` | `content/docs` | Where the Markdown docs live. |
 | `mode` | `new-pr` | `new-pr` (standalone docs-only PR) or `same-pr` (commit onto the triggering PR; same-repo only). |
 | `commit-message` | `docs: sync with <file>` | Commit subject; also the PR title. |
-| `commit-trailer` | `via @kurabuild` | Body line appended to the commit. Set to `""` to omit. |
+| `commit-trailer` | `via @kurajs` | Body line appended to the commit. Set to `""` to omit. |
 | `backend` | `claude-agent-sdk` | `claude-agent-sdk` or `cli`. |
 | `model` | — | Model id for the Claude backend. |
 | `agent-cmd` | — | For `backend: cli` — the external agent CLI (e.g. `codex exec`). |

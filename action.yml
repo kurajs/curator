@@ -50,9 +50,9 @@ inputs:
     required: false
     default: ""
   commit-trailer:
-    description: "Appended to the commit as a body line. Default 'via @kurabuild'; set to an empty string to omit it."
+    description: "Appended to the commit as a body line. Default 'via @kurajs'; set to an empty string to omit it."
     required: false
-    default: "via @kurabuild"
+    default: "via @kurajs"
   committer-name:
     description: "Git author/committer name for the docs commit. For a real commit avatar, use a GitHub identity — e.g. a GitHub App bot 'mori[bot]' or a machine user."
     required: false
