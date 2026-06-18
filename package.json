@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@actions/core": "^1.11.0",
+    "@actions/core": "^3.0.1",
     "@anthropic-ai/claude-agent-sdk": "latest",
     "@kurajs/docs": "^0.0.5"
   },
