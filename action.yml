@@ -29,6 +29,14 @@ inputs:
     description: "Base ref to diff against. Defaults to the PR base / 'main'."
     required: false
     default: ""
+  docs-repo:
+    description: "Cross-repo mode: 'owner/name' of a SEPARATE repo holding the docs. Empty = same-repo (docs live beside the code). Requires a github-token with write access to that repo."
+    required: false
+    default: ""
+  docs-ref:
+    description: "Base branch in the docs repo to open the PR against (cross-repo mode). Default 'main'."
+    required: false
+    default: "main"
   github-token:
     description: "Token used to push the branch and open the PR."
     required: false
