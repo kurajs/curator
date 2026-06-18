@@ -46,7 +46,7 @@ inputs:
     required: false
     default: ${{ github.token }}
   commit-message:
-    description: "Commit subject (also used as the PR title). Default: 'docs: sync with <first changed file>'."
+    description: "Commit subject (also the PR title). Default: derived from the edited pages, e.g. 'docs: update deploy, quickstart'."
     required: false
     default: ""
   commit-trailer:

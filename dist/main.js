@@ -85,10 +85,11 @@ async function run() {
     const resolveOpts = { model: inp("MODEL", "model"), agentCmd: inp("AGENT_CMD", "agent-cmd") };
     // 1. changed files in this PR/push (vs base), in the CODE repo
     const changed = changedFiles(base);
-    // Commit message: custom subject (or the default), plus a trailer that defaults to "via @kurabuild"
+    // Commit message: custom subject (commit-message) or — when empty — auto-derived from the pages
+    // Mori actually edits ("docs: update deploy, quickstart"). Plus a trailer defaulting to "via @kurajs"
     // (set commit-trailer to "" to drop it). The subject doubles as the PR title.
     const commit = {
-        subject: inp("COMMIT_MESSAGE", "commit-message") || `docs: sync with ${changed[0] ?? "code"}`,
+        subject: inp("COMMIT_MESSAGE", "commit-message"), // empty → derived from edited pages
         trailer: inp("COMMIT_TRAILER", "commit-trailer"),
     };
     if (docsRepo) {
@@ -102,8 +103,18 @@ async function run() {
 // generic placeholder. Defaults keep the "Mori" name; set committer-* to a real identity for an avatar.
 const gitId = (c) => ["-c", `user.name=${c.name}`, "-c", `user.email=${c.email}`];
 // `commit -m <subject> [-m <trailer>]` — git joins the two -m values with a blank line, so the trailer
-// (e.g. "via @kurabuild") becomes the commit body. Trailer empty → subject only.
+// (e.g. "via @kurajs") becomes the commit body. Trailer empty → subject only.
 const commitArgs = (c) => ["commit", "-m", c.subject, ...(c.trailer ? ["-m", c.trailer] : [])];
+// Derive a commit subject from the pages actually edited: "docs: update deploy, quickstart".
+// Paths are repo-root-relative; strip the docsDir prefix + .md(x) + any locale subdir → page name.
+function subjectFor(custom, editedPaths, docsDir, changed) {
+    if (custom)
+        return custom;
+    const names = [
+        ...new Set(editedPaths.map((p) => (p.startsWith(`${docsDir}/`) ? p.slice(docsDir.length + 1) : p).replace(/\.mdx?$/i, "").split("/").pop())),
+    ];
+    return names.length ? `docs: update ${names.join(", ")}` : `docs: sync with ${changed[0] ?? "code"}`;
+}
 // SAME-REPO: docs live beside the code in this checkout.
 //   mode=new-pr (default) → open a standalone, docs-only PR off `base`.
 //   mode=same-pr          → commit onto the triggering PR's branch (only valid for a non-fork PR).
@@ -126,7 +137,9 @@ async function sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolv
         return;
     }
     sh("git", ["add", docsDir]);
-    sh("git", [...gitId(committer), ...commitArgs(commit)]);
+    const edited = sh("git", ["diff", "--cached", "--name-only", "--", docsDir]).split("\n").filter(Boolean);
+    const subject = subjectFor(commit.subject, edited, docsDir, changed);
+    sh("git", [...gitId(committer), ...commitArgs({ subject, trailer: commit.trailer })]);
     const docsCommit = sh("git", ["rev-parse", "HEAD"]);
     // same-pr: ride the triggering PR by pushing the docs commit onto its head branch. Only works for a
     // same-repo PR — a fork PR's head is in another repo the GITHUB_TOKEN can't write, so fall back.
@@ -152,7 +165,7 @@ async function sameRepo({ cwd, docsDir, base, mode, changed, backendName, resolv
         return;
     }
     sh("git", ["push", "origin", branch]);
-    const url = sh("gh", ["pr", "create", "--title", commit.subject, "--body", prBody(changed, candidates, docsDir, summary), "--head", branch, "--base", base], cwd, { ...process.env, GH_TOKEN: token });
+    const url = sh("gh", ["pr", "create", "--title", subject, "--body", prBody(changed, candidates, docsDir, summary), "--head", branch, "--base", base], cwd, { ...process.env, GH_TOKEN: token });
     core.info(`Opened docs PR: ${url}`);
     core.setOutput("pr-url", url);
 }
@@ -195,10 +208,11 @@ async function crossRepo({ cwd, docsDir, docsRepo, docsRef, changed, backendName
     const branch = `curator/sync-${runSuffix()}`;
     sh("git", ["checkout", "-b", branch], checkout);
     sh("git", ["add", docsDir], checkout);
-    sh("git", [...gitId(committer), ...commitArgs(commit)], checkout);
+    const edited = sh("git", ["diff", "--cached", "--name-only", "--", docsDir], checkout).split("\n").filter(Boolean);
+    const subject = subjectFor(commit.subject, edited, docsDir, changed);
+    sh("git", [...gitId(committer), ...commitArgs({ subject, trailer: commit.trailer })], checkout);
     sh("git", ["push", "origin", branch], checkout);
-    const from = process.env.GITHUB_REPOSITORY ? ` from \`${process.env.GITHUB_REPOSITORY}\`` : "";
-    const url = sh("gh", ["pr", "create", "--repo", docsRepo, "--title", commit.subject, "--body", prBody(changed, candidates, docsDir, summary, from), "--head", branch, "--base", docsRef], checkout, { ...process.env, GH_TOKEN: token });
+    const url = sh("gh", ["pr", "create", "--repo", docsRepo, "--title", subject, "--body", prBody(changed, candidates, docsDir, summary, process.env.GITHUB_REPOSITORY ?? ""), "--head", branch, "--base", docsRef], checkout, { ...process.env, GH_TOKEN: token });
     core.info(`Opened docs PR in ${docsRepo}: ${url}`);
     core.setOutput("pr-url", url);
 }
@@ -209,8 +223,18 @@ function editPrompt(changed, pages, scope) {
         `Read the current code and each page, then update the page so its prose and examples match the current code. ` +
         `If a page is already accurate, leave it.`);
 }
-function prBody(changed, candidates, docsDir, summary, from = "") {
-    return `Opened by **Mori** (Kura Curator)${from}.\n\nChanged: ${changed.join(", ")}\nPages: ${candidates.map((p) => docsDir + "/" + p).join(", ")}\n\n${summary.slice(0, 800)}`;
+function prBody(changed, candidates, docsDir, summary, fromRepo = "") {
+    // Attribution sits at the END as a signature, led by the same `via @kurajs` used in the commit.
+    const who = fromRepo ? `Mori (Kura Curator), from \`${fromRepo}\`` : "Mori (Kura Curator)";
+    return [
+        `Changed: ${changed.join(", ")}`,
+        `Pages: ${candidates.map((p) => docsDir + "/" + p).join(", ")}`,
+        "",
+        summary.slice(0, 800),
+        "",
+        "---",
+        `*via [@kurajs](https://github.com/kurajs) — ${who}*`,
+    ].join("\n");
 }
 run().catch((e) => core.setFailed(e instanceof Error ? e.message : String(e)));
 //# sourceMappingURL=main.js.map
