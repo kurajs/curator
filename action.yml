@@ -1,0 +1,43 @@
+name: "Kura Curator"
+description: "Mori keeps your docs true to your code — on a PR, opens a docs PR updating only the pages the change affects."
+author: "Lawrence Lin"
+branding:
+  icon: "book-open"
+  color: "purple"
+
+inputs:
+  anthropic-api-key:
+    description: "Anthropic API key for the default claude-agent-sdk backend. Pass a repo secret."
+    required: false
+  docs-dir:
+    description: "Directory holding the Markdown docs (Kura default: content/docs)."
+    required: false
+    default: "content/docs"
+  backend:
+    description: "Agent backend: 'claude-agent-sdk' (default) or 'cli'."
+    required: false
+    default: "claude-agent-sdk"
+  model:
+    description: "Model id for the claude-agent-sdk backend (optional)."
+    required: false
+    default: ""
+  agent-cmd:
+    description: "For backend=cli: the external agent CLI command (e.g. 'codex exec')."
+    required: false
+    default: ""
+  base:
+    description: "Base ref to diff against. Defaults to the PR base / 'main'."
+    required: false
+    default: ""
+  github-token:
+    description: "Token used to push the branch and open the PR."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  pr-url:
+    description: "URL of the opened docs PR, if any."
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

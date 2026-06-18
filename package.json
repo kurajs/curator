@@ -1,0 +1,22 @@
+{
+  "name": "kura-curator-action",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mori (守) keeps your docs true to your code — the Kura Curator GitHub Action.",
+  "license": "MIT",
+  "author": "Lawrence Lin",
+  "type": "module",
+  "scripts": {
+    "build": "ncc build src/main.ts -o dist --source-map --minify",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@actions/core": "^1.11.0",
+    "@anthropic-ai/claude-agent-sdk": "latest",
+    "@kurajs/docs": "^0.0.4"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.3",
+    "typescript": "^5.7.0"
+  }
+}

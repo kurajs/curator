@@ -1,0 +1,4 @@
+node_modules/
+*.log
+.DS_Store
+# dist/ IS committed for releases (GitHub runs dist/index.js); built by `npm run build`.
